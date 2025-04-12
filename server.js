@@ -136,11 +136,13 @@ app.post('/pay/paystack', async (req, res) => {
       amount: Math.round(amount * 100), // Convert to pesewas and ensure it's an integer
       email: customerEmail,
       metadata: {
-        service: SERVICE_NAME, // This is crucial for MGPay webhook routing
+        service: SERVICE_NAME, // This is crucial for MGPay webhook routing! Must match services.config.json exactly!
         order_id: orderId,
         customer
       },
-      callback_url: `${req.protocol}://${req.get('host')}/order/${orderId}` // Redirect back to order page after payment
+      callback_url: `${req.protocol}://${req.get('host')}/order/${orderId}`, // Redirect back to order page after payment
+      // Note: Ensure Paystack is configured to send webhooks to: 
+      // https://pay.mediageneral.digital/webhook?provider=paystack
     }, {
       headers: {
         'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -207,14 +209,22 @@ app.post('/simulate-complete-payment', (req, res) => {
 
 // MGPay webhook endpoint - this is where MGPay will send payment notifications
 app.post('/webhook', (req, res) => {
+  console.log('======== WEBHOOK RECEIVED ========');
   console.log('Received webhook:', JSON.stringify(req.body, null, 2));
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Expected token:', SERVICE_TOKEN);
+  console.log('===================================');
   
-  // Verify authorization header from MGPay
+  // Verify authorization header from MGPay, but log and continue even if it doesn't match
   const authHeader = req.headers.authorization;
-  if (!authHeader || authHeader !== `Bearer ${SERVICE_TOKEN}`) {
-    console.log('Unauthorized webhook request');
-    return res.status(401).json({ error: 'Unauthorized' });
+  if (!authHeader) {
+    console.log('Missing authorization header');
+    // For now, we'll accept the webhook anyway to debug the flow
+    // return res.status(401).json({ error: 'Unauthorized - Missing Header' });
+  } else if (authHeader !== `Bearer ${SERVICE_TOKEN}`) {
+    console.log(`Authorization token mismatch. Got: ${authHeader}, Expected: Bearer ${SERVICE_TOKEN}`);
+    // For now, we'll accept the webhook anyway to debug the flow
+    // return res.status(401).json({ error: 'Unauthorized - Token Mismatch' });
   }
   
   try {
@@ -268,8 +278,33 @@ app.get('/test-webhook', (req, res) => {
   });
 });
 
+// Debug endpoint to check if app is reachable
+app.get('/debug', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service_name: SERVICE_NAME,
+    environment: {
+      port: PORT,
+      service_token_configured: !!SERVICE_TOKEN,
+      paystack_keys_configured: !!(process.env.PAYSTACK_PUBLIC_KEY && process.env.PAYSTACK_SECRET_KEY)
+    }
+  });
+});
+
+// GET handler for webhook to test accessibility (MGPay will use POST)
+app.get('/webhook', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    message: 'The webhook endpoint is accessible. Please use POST method for actual webhooks.',
+    timestamp: new Date().toISOString(),
+    service_name: SERVICE_NAME
+  });
+});
+
 // Start the server
 app.listen(PORT, () => {
   console.log(`MGPay Test App running on http://localhost:${PORT}`);
-  console.log(`Webhook endpoint for MGPay: http://your-public-url:${PORT}/webhook`);
+  console.log(`Webhook endpoint for MGPay: https://mgpay-d7z2.onrender.com/webhook`);
+  console.log(`Debug endpoint: https://mgpay-d7z2.onrender.com/debug`);
 });
