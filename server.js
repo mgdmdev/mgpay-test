@@ -116,48 +116,53 @@ app.post('/order', async (req, res) => {
   }
 });
 
-// Generate Paystack payment link
+// Generate real Paystack payment link
 app.post('/pay/paystack', async (req, res) => {
   try {
     const { orderId, amount, customer } = req.body;
+    const email = req.body.email || 'customer@example.com';
     
-    // In a real integration, you'd make a request to Paystack to create a payment link
-    // For this demo app, we'll simulate it with a mock response
+    // Create a customer email if not provided
+    const customerEmail = email.includes('@') ? email : `${customer.replace(/\s+/g, '').toLowerCase()}@example.com`;
     
-    // NOTE: In production, you would use the actual Paystack API
-    // const response = await axios.post('https://api.paystack.co/transaction/initialize', {
-    //   amount: amount * 100, // Convert to pesewas
-    //   email: 'customer@example.com',
-    //   metadata: {
-    //     service: SERVICE_NAME,
-    //     order_id: orderId,
-    //     customer
-    //   }
-    // }, {
-    //   headers: {
-    //     'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`
-    //   }
-    // });
+    // Real integration with Paystack API
+    const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
     
-    // For demo purposes only - this simulates what Paystack would return
-    const mockResponse = {
-      status: true,
-      message: 'Authorization URL created',
-      data: {
-        authorization_url: `/simulate-payment-form?provider=paystack&order_id=${orderId}`,
-        access_code: 'ACCESS_CODE',
-        reference: `ref_${orderId.substring(0, 8)}`
+    if (!PAYSTACK_SECRET_KEY) {
+      throw new Error('Paystack secret key is not configured');
+    }
+    
+    const response = await axios.post('https://api.paystack.co/transaction/initialize', {
+      amount: Math.round(amount * 100), // Convert to pesewas and ensure it's an integer
+      email: customerEmail,
+      metadata: {
+        service: SERVICE_NAME, // This is crucial for MGPay webhook routing
+        order_id: orderId,
+        customer
+      },
+      callback_url: `${req.protocol}://${req.get('host')}/order/${orderId}` // Redirect back to order page after payment
+    }, {
+      headers: {
+        'Authorization': `Bearer ${PAYSTACK_SECRET_KEY}`,
+        'Content-Type': 'application/json'
       }
-    };
+    });
+    
+    if (!response.data.status) {
+      throw new Error(`Paystack error: ${response.data.message}`);
+    }
     
     // Save the Paystack reference to our order
-    updateOrderStatus(orderId, 'payment_initiated', mockResponse.data.reference);
+    updateOrderStatus(orderId, 'payment_initiated', response.data.data.reference);
     
-    // Redirect to the payment page
-    res.redirect(mockResponse.data.authorization_url);
+    // Log the payment initialization
+    console.log(`Payment initiated for order ${orderId} with reference ${response.data.data.reference}`);
+    
+    // Redirect to Paystack's payment page
+    res.redirect(response.data.data.authorization_url);
   } catch (error) {
     console.error('Error initiating payment:', error);
-    res.render('error', { message: 'Failed to initiate payment' });
+    res.render('error', { message: `Failed to initiate payment: ${error.message}` });
   }
 });
 

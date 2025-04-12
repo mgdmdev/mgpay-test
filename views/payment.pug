@@ -73,6 +73,9 @@ html
                 img.provider-logo(src="https://paystack.com/images/Paystack-Mark-Color.png" alt="Paystack Logo")
                 h3 Pay with Paystack
                 p Process payments via card, bank transfer, or mobile money
+                .mb-3
+                  label.form-label(for="email") Email (required for Paystack)
+                  input.form-control#email(type="email" name="email" required placeholder="user@example.com")
                 button.btn.btn-success.mt-3.w-100(type="submit") Continue with Paystack
         
         .col-md-6.mb-4

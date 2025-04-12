@@ -22,7 +22,10 @@ This is a fully-functional test application for validating MGPay integrations in
    ```
    cp .env.example .env
    ```
-   Edit the `.env` file to set your SERVICE_TOKEN (should match what's configured in MGPay)
+   Edit the `.env` file to set:
+   - `SERVICE_TOKEN`: Should match what's configured in MGPay
+   - `PAYSTACK_PUBLIC_KEY`: Your Paystack public key
+   - `PAYSTACK_SECRET_KEY`: Your Paystack secret key
 
 4. Run the application:
    ```
