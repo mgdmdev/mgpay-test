@@ -1,0 +1,185 @@
+doctype html
+html
+  head
+    title Test Webhook - MGPay Test App
+    meta(name="viewport" content="width=device-width, initial-scale=1.0")
+    link(rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css")
+    link(rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css")
+    style.
+      pre {
+        border-radius: 5px;
+        margin-top: 10px;
+      }
+  body
+    .container.py-5
+      .row.mb-5
+        .col-12
+          a.btn.btn-outline-secondary.mb-3(href="/") ← Back to Home
+          h1.display-4 Test Webhook Reception
+          p.lead Simulate receiving a webhook from MGPay
+          hr
+      
+      .row.mb-5
+        .col-md-5
+          .card.shadow-sm.mb-4
+            .card-header.bg-primary.text-white
+              h3 Webhook Test Form
+            .card-body
+              p Use this form to simulate receiving a webhook from MGPay:
+              
+              form#webhookForm(action="javascript:void(0);")
+                .mb-3
+                  label.form-label(for="orderSelect") Select Order:
+                  select.form-select#orderSelect(required)
+                    option(value="") -- Select Order --
+                    each order in orders
+                      option(value=order.id data-reference=order.payment_reference) #{order.id.substring(0, 8)} - GHS #{order.amount} (#{order.status})
+                
+                .mb-3
+                  label.form-label(for="provider") Payment Provider:
+                  select.form-select#provider
+                    option(value="paystack") Paystack
+                    option(value="flutterwave") Flutterwave
+                
+                .mb-3
+                  label.form-label(for="eventType") Event Type:
+                  select.form-select#eventType
+                    option(value="charge.success") charge.success
+                    option(value="payment.successful") payment.successful
+                
+                button.btn.btn-primary.w-100#testButton(type="submit") Send Test Webhook
+            
+            .card-footer.bg-light
+              small This will send a webhook to your own service endpoint, simulating what MGPay would send.
+        
+        .col-md-7
+          .card.shadow-sm
+            .card-header.bg-secondary.text-white
+              h3 Webhook Payload Preview
+            .card-body
+              p Below is the payload that will be sent to your webhook endpoint:
+              pre
+                code.language-json#payloadPreview
+              
+              .alert.alert-info.mt-3
+                h5 Headers
+                p In addition to the payload, the request will include these headers:
+                pre
+                  code.language-json.
+                    {
+                      "Content-Type": "application/json",
+                      "Authorization": "Bearer YOUR_SERVICE_TOKEN"
+                    }
+      
+      .row
+        .col-12
+          .card.bg-light
+            .card-header
+              h3 Response Log
+            .card-body
+              #responseLog.p-3.bg-dark.text-light.rounded(style="min-height: 100px;")
+                p.text-muted Webhook responses will appear here...
+    
+    script(src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js")
+    script(src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js")
+    script(src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js")
+    script.
+      document.addEventListener('DOMContentLoaded', function() {
+        const orderSelect = document.getElementById('orderSelect');
+        const provider = document.getElementById('provider');
+        const eventType = document.getElementById('eventType');
+        const payloadPreview = document.getElementById('payloadPreview');
+        const testButton = document.getElementById('testButton');
+        const responseLog = document.getElementById('responseLog');
+        
+        // Function to update the payload preview
+        function updatePreview() {
+          const selectedOrder = orderSelect.options[orderSelect.selectedIndex];
+          const orderId = orderSelect.value;
+          const reference = selectedOrder.dataset.reference || `ref_${orderId.substring(0, 8)}`;
+          
+          // Create the payload
+          const payload = {
+            event: eventType.value,
+            data: {
+              reference: reference,
+              amount: 5000, // Example amount in pesewas
+              currency: "GHS",
+              status: "success",
+              metadata: {
+                service: "#{service_name}",
+                order_id: orderId
+              }
+            }
+          };
+          
+          // Update the preview
+          payloadPreview.textContent = JSON.stringify(payload, null, 2);
+          Prism.highlightElement(payloadPreview);
+        }
+        
+        // Update preview when selections change
+        orderSelect.addEventListener('change', updatePreview);
+        provider.addEventListener('change', updatePreview);
+        eventType.addEventListener('change', updatePreview);
+        
+        // Initial preview update
+        if (orderSelect.options.length > 1) {
+          orderSelect.selectedIndex = 1;
+          updatePreview();
+        }
+        
+        // Handle form submission
+        webhookForm.addEventListener('submit', function(e) {
+          e.preventDefault();
+          
+          if (!orderSelect.value) {
+            alert('Please select an order.');
+            return;
+          }
+          
+          const selectedOrder = orderSelect.options[orderSelect.selectedIndex];
+          const orderId = orderSelect.value;
+          const reference = selectedOrder.dataset.reference || `ref_${orderId.substring(0, 8)}`;
+          
+          // Create the payload
+          const payload = {
+            event: eventType.value,
+            data: {
+              reference: reference,
+              amount: 5000,
+              currency: "GHS",
+              status: "success",
+              metadata: {
+                service: "#{service_name}",
+                order_id: orderId
+              }
+            }
+          };
+          
+          // Log the request
+          responseLog.innerHTML = `<p class="text-info">Sending webhook to /webhook...</p>`;
+          
+          // Send the webhook
+          fetch('/webhook', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer YOUR_SERVICE_TOKEN'
+            },
+            body: JSON.stringify(payload)
+          })
+          .then(response => response.json())
+          .then(data => {
+            responseLog.innerHTML += `<p class="text-success">Response received: ${JSON.stringify(data)}</p>`;
+            
+            // Refresh the page after a short delay
+            setTimeout(() => {
+              window.location.href = `/order/${orderId}`;
+            }, 2000);
+          })
+          .catch(error => {
+            responseLog.innerHTML += `<p class="text-danger">Error: ${error.message}</p>`;
+          });
+        });
+      });
