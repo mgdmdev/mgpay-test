@@ -263,7 +263,8 @@ app.get('/test-webhook', (req, res) => {
   const orders = getOrders();
   res.render('test-webhook', { 
     orders: orders.orders,
-    service_name: SERVICE_NAME
+    service_name: SERVICE_NAME,
+    service_token: SERVICE_TOKEN
   });
 });
 

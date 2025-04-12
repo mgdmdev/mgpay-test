@@ -165,7 +165,7 @@ html
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer YOUR_SERVICE_TOKEN'
+              'Authorization': 'Bearer #{service_token}'
             },
             body: JSON.stringify(payload)
           })
